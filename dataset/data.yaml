@@ -1,0 +1,8 @@
+path: d:/PROJECTS/AI-Fabric-Defect-Detection\dataset
+train: images/train
+val: images/val
+names:
+  0: hole
+  1: objects
+  2: oil spot
+  3: thread error

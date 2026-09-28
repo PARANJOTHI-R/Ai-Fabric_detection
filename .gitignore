@@ -1,0 +1,32 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Node.js (Frontend)
+node_modules/
+dist/
+build/
+.npm/
+npm-debug.log
+yarn-error.log
+
+# IDEs and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Machine Learning & Project Specific
+*.pt
+*.pth
+*.onnx
+results/
+yolov8n.pt

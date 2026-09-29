@@ -1,70 +1,213 @@
-# Project Overview: AI-Based Fabric Defect Detection
+# Project Overview: AI-Based Fabric Defect Detection — Hybrid Pipeline
 
 ## Problem Statement
+
 Manual inspection in the textile manufacturing pipeline is notoriously slow, subject to human fatigue, and often inconsistent. Minor defects are frequently missed, leading to compromised final product quality and significant financial losses.
 
-## Existing System
-Currently, quality checks are either fully manual or rely on traditional computer vision algorithms (like thresholding or edge detection) which are brittle to lighting changes and fabric texture variations.
+---
 
-## Proposed System
-An AI-driven Computer Vision system utilizing Deep Learning (YOLO Object Detection) to identify and localize fabric defects in real-time. It operates robustly regardless of minor texture or lighting changes.
+## Architecture Overview
 
-## Objectives
-1. Automatically detect defects in fabric images.
-2. Provide bounding box localization and confidence scores.
-3. Classify defects into specific categories.
-4. Display results through an intuitive industrial dashboard.
+The system now uses a **Hybrid Pipeline** combining two independent AI models:
 
-## Dataset
-- **Name**: TILDA-400
-- **Size**: 400 images
-- **Classes**: Hole, Objects, Oil Spot, Thread Error
-- **Format**: YOLO format bounding box annotations
+```
+                    INPUT IMAGE
+                         │
+              ┌──────────┴──────────┐
+              │                     │
+         YOLO Detector         MobileNetV3-Small
+         (TILDA-400)           Classifier
+         Detects + Localizes   Classifies fabric type
+         Provides bounding     No bounding box
+         boxes                 (classification only)
+              │                     │
+              └──────────┬──────────┘
+                         │
+                 Decision Logic
+                         │
+               ┌─────────┴─────────┐
+               │                   │
+        YOLO detects         YOLO finds nothing
+               │                   │
+           DEFECTIVE        Classifier ≥ 0.55 and
+                            defective class?
+                                   │
+                          ┌────────┴────────┐
+                          │                 │
+                     YES (≥0.55)       NO / defect free
+                          │                 │
+                      DEFECTIVE           PASS
+```
 
-## Dataset Preparation
-A programmatic pipeline shuffles and splits the data into 80% Training and 20% Validation sets, organizing them into standard YOLO hierarchy and auto-generating the `data.yaml` configuration file.
+This resolves the primary problem of **false negatives** — cases where the YOLO model returned PASS on defective images that lie outside the TILDA-400 texture distribution.
 
-## Methodology
-1. **Preprocessing**: Images are scaled to 640x640 for the neural network.
-2. **Inference**: YOLOv8 extracts spatial features and proposes bounding boxes.
-3. **NMS**: Non-Maximum Suppression removes duplicate boxes.
-4. **Postprocessing**: Predictions are mapped to class names and served via REST API.
+---
+
+## Datasets
+
+### Dataset 1 — TILDA-400 (YOLO Detection)
+
+| Property        | Value                                      |
+|-----------------|--------------------------------------------|
+| Name            | TILDA-400                                  |
+| Size            | ~400 images                                |
+| Annotation type | YOLO bounding box labels (.txt)            |
+| Classes         | hole, objects, oil spot, thread error      |
+| Purpose         | Defect localization with bounding boxes    |
+| Location        | `photos/` (images), `labels/` (annotations) |
+
+### Dataset 2 — Fabric Defects Dataset (Classifier)
+
+| Property        | Value                                                        |
+|-----------------|--------------------------------------------------------------|
+| Name            | Fabric Defects Dataset                                       |
+| Size            | ~2000 images                                                 |
+| Annotation type | Folder-based image classification (NO bounding boxes)        |
+| Classes         | Vertical, defect free, hole, horizontal, lines, stain        |
+| Purpose         | Catching defects missed by YOLO; reducing false negatives    |
+| Location        | `Fabric Defects Dataset/`                                    |
+
+**Why two separate datasets?**
+- TILDA-400 is an object-detection dataset with bounding box annotations. It powers the YOLO model for localization.
+- The Fabric Defects Dataset is a classification dataset (folder-per-class, no bounding box annotations). Bounding boxes were NOT fabricated — the classifier provides class + confidence only.
+- These are genuinely different tasks and require different models.
+
+---
+
+## Model Architecture
+
+### Model 1 — YOLOv8 (TILDA-400)
+- **Architecture**: YOLOv8n / YOLOv8s
+- **Task**: Object detection (bounding box regression + classification)
+- **Output**: `[class_name, confidence, bbox: {x1,y1,x2,y2}]`
+- **Calibrated thresholds**: thread_error=0.06, hole=0.08, objects=0.10, oil_spot=0.15
+
+### Model 2 — MobileNetV3-Small (Fabric Defects Dataset)
+- **Architecture**: MobileNetV3-Small with custom classification head
+- **Pretrained weights**: ImageNet (transfer learning)
+- **Fine-tuned**: 2-stage training (head warmup + full network fine-tuning)
+- **Task**: Image classification (6 classes)
+- **Output**: `[class_name, confidence, all_probs]` — **NO bounding box**
+- **Decision threshold**: 0.55 (only flags DEFECTIVE if confidence ≥ 55%)
+- **Trained with**: Class-balanced weights, data augmentation, CosineAnnealingLR, early stopping
+
+---
+
+## Training Pipeline
+
+### Classifier Training (`training/train_classifier.py`)
+1. Dataset scanned; exact duplicate images removed (MD5 hash check)
+2. Stratified train (70%) / val (15%) / test (15%) split — no data leakage
+3. Class weights computed to handle imbalance
+4. **Stage 1** (3 epochs): Frozen features — train head only
+5. **Stage 2** (up to 12 epochs): Full network fine-tuning with CosineAnnealingLR
+6. Best checkpoint saved by Val Macro-F1
+7. Training history plot saved to `results/new_classifier/`
+8. Split info saved to `results/new_classifier/dataset_split.json`
+
+### Classifier Evaluation (`training/evaluate_classifier.py`)
+- Runs on held-out test set (never seen during training)
+- Reports: Accuracy, Macro Precision/Recall/F1, Weighted F1, per-class metrics
+- Binary quality metrics (DEFECTIVE vs PASS)
+- Saves confusion matrix PNG
+- Sample predictions from every class
+
+---
+
+## Inference Workflow (Final Application)
+
+```
+POST /api/predict (multipart image)
+          │
+     preprocess_image (OpenCV BGR decode)
+          │
+   ┌──────┴──────┐
+   │             │
+ YOLO          Classifier
+ predict       predict
+   │             │
+   └──────┬──────┘
+          │
+   Decision Logic:
+   1. If YOLO detections exist → DEFECTIVE (bounding boxes shown)
+   2. Elif Classifier is_defective AND confidence ≥ 0.55 → DEFECTIVE (no bbox shown)
+   3. Else → PASS
+          │
+   PredictionResponse (JSON):
+   {
+     "quality_status": "DEFECTIVE" | "PASS",
+     "primary_defect": "stain" | "hole" | ...,
+     "confidence": 0.92,
+     "detection_source": "yolo" | "classifier" | "both" | "none",
+     "detections": [...],          ← YOLO only (have bboxes)
+     "classification": {...},      ← Classifier only (no bbox)
+     "defects": [...],             ← Same as detections (backward compat)
+     "defect_count": N
+   }
+```
+
+---
 
 ## System Architecture
-- **Frontend Layer**: React + Tailwind CSS Dashboard
-- **Backend Layer**: FastAPI (Python)
-- **Model Layer**: Ultralytics YOLO inference engine
 
-## Technology Stack
-- **AI Framework**: PyTorch / Ultralytics
-- **Web API**: FastAPI
-- **User Interface**: React, Vite, Tailwind CSS
+| Layer     | Technology                                  |
+|-----------|---------------------------------------------|
+| Frontend  | React 18 + Vite + Tailwind CSS              |
+| Backend   | FastAPI + uvicorn                           |
+| Detection | Ultralytics YOLOv8 (TILDA-400)             |
+| Classifier| PyTorch + MobileNetV3-Small                 |
+| Serving   | Two model services loaded at startup        |
 
-## YOLO Model
-YOLOv8 nano (`yolov8n.pt`) is chosen for its balance of high mean Average Precision (mAP) and extreme computational efficiency, allowing it to run smoothly on CPUs or edge devices.
+---
 
-## Training
-The model is fine-tuned on the TILDA-400 dataset. FAST MODE allows quick epochs (15-20) for prototyping and validation, optimizing for speed and proof-of-concept demonstrations.
+## False Negative Reduction Strategy
 
-## Evaluation
-The model is evaluated on the 20% validation split to generate mAP50, mAP50-95, precision, and recall metrics, avoiding data leakage. 
+| Scenario                              | YOLO Result | Classifier Result | Final Decision |
+|---------------------------------------|-------------|-------------------|----------------|
+| YOLO detects hole/objects/oil/thread  | DEFECTIVE   | Any               | **DEFECTIVE** (YOLO wins) |
+| YOLO misses; classifier sees stain    | PASS (miss) | stain 87%         | **DEFECTIVE** (classifier rescues) |
+| YOLO misses; classifier sees defect free | PASS    | defect free 91%   | **PASS**       |
+| YOLO misses; classifier uncertain     | PASS        | stain 38%         | **PASS** (below threshold) |
 
-## Actual Results
-*(Will be updated once the model finishes training on the specific workspace dataset)*
+The 0.55 threshold was selected conservatively to minimize false positives while catching high-confidence missed defects.
 
-## Demo Workflow
-1. User uploads a fabric image via the React Dashboard.
-2. Frontend sends multipart/form-data to FastAPI `POST /api/predict`.
-3. FastAPI decodes the image via OpenCV and runs YOLO inference.
-4. FastAPI returns a JSON array of defects.
-5. React draws bounding boxes over the image and updates the UI status.
+---
+
+## Evaluation Results
+
+Actual metrics are stored in:
+- `results/new_classifier/classifier_metrics.json`
+- `results/new_classifier/classifier_confusion_matrix.png`
+- `results/new_classifier/classifier_training_history.png`
+
+---
+
+## Important Notes on Bounding Boxes
+
+> **The classifier does NOT produce bounding boxes.**
+
+The Fabric Defects Dataset is a folder-based classification dataset. No bounding box annotations exist. The frontend is explicitly designed to:
+- Show bounding boxes **only** for YOLO detections
+- Show class + confidence (no box) for classifier-only results
+- Display a clear "Classification result — no bounding box available" note
+
+Bounding boxes were never fabricated for the classifier.
+
+---
 
 ## Limitations
-- Model is strictly trained on TILDA-400 textures; highly varied fabrics might require retraining.
-- High-resolution microscopic defects may not be detected at 640x640 input resolution.
+
+- YOLO limited to TILDA-400 texture distribution; rare fabric types may miss defects
+- Classifier cannot localize where the defect is within the image
+- Classifier has 6 classes, YOLO has 4 — some overlap (hole class present in both datasets)
+- High-resolution microscopic defects may not be detected at 640×640 input resolution
+
+---
 
 ## Future Scope
-- **Real-Time Camera Integration**: Direct video feed inspection on weaving machines.
-- **Defect Severity**: Classifying severity based on defect surface area.
-- **Automated Alerts**: Email or SMS triggers for critical defects.
-- **Edge Deployment**: Running on Jetson Nano or similar hardware for factory floors.
+
+- **Real-Time Camera Integration**: Direct video feed inspection on weaving machines
+- **Weak Supervision**: Generate approximate bounding boxes from classifier attention maps (Grad-CAM)
+- **Unified Model**: Train a single multi-task model if annotated bounding boxes become available for all classes
+- **Defect Severity**: Classify severity based on defect surface area
+- **Edge Deployment**: Running on Jetson Nano or similar hardware for factory floors

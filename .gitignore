@@ -30,3 +30,40 @@ Thumbs.db
 *.onnx
 results/
 yolov8n.pt
+
+# Datasets
+Fabric Defects Dataset/
+Fabric Defect Dataset/
+photos/
+labels/
+dataset/
+
+# Trained models
+*.pt
+*.pth
+*.onnx
+*.keras
+*.h5
+backend/models/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# Environment
+.env
+.env.*
+
+# Generated ML results
+runs/
+wandb/
+
+# IDE
+.vscode/
+.idea/

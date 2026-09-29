@@ -5,3 +5,9 @@ fastapi
 uvicorn
 python-multipart
 pydantic
+torch
+torchvision
+pillow
+scikit-learn
+matplotlib
+numpy

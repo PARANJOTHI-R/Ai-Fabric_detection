@@ -1,107 +1,292 @@
-# AI-Based Fabric Defect Detection and Quality Inspection
+# AI-Based Fabric Defect Detection — Hybrid Pipeline
 
-## Problem Statement
-Manual fabric inspection in the textile industry is time-consuming, labor-intensive, subjective, and prone to human error. It is challenging to perform consistently at a large scale, resulting in increased costs and potential quality control escapes.
+> **YOLOv8 detection** (TILDA-400) + **MobileNetV3-Small classifier** (Fabric Defects Dataset)  
+> Reduces false negatives without fabricating bounding boxes.
 
-## Objective
-The objective is to build an AI-based computer vision system that automatically analyzes fabric images and detects fabric defects with high accuracy and speed.
-
-## Dataset
-- **Name**: TILDA-400
-- **Task**: Object Detection
-- **Format**: YOLO format annotations
-- **Structure**:
-  ```
-  dataset/
-  ├── images/ (train/val)
-  ├── labels/ (train/val)
-  └── data.yaml
-  ```
-
-## Defect Classes
-The system detects the following 4 classes:
-1. Hole (0)
-2. Objects (1)
-3. Oil Spot (2)
-4. Thread Error (3)
+---
 
 ## System Architecture
-The project follows a modular client-server architecture:
-1. **Frontend**: React.js + Tailwind CSS providing a professional UI.
-2. **Backend**: Python FastAPI serving the trained AI model.
-3. **AI Engine**: Ultralytics YOLO object detection.
+
+```
+                    INPUT IMAGE
+                         │
+              ┌──────────┴──────────┐
+              │                     │
+         YOLOv8 Detector       MobileNetV3-Small
+         (TILDA-400)           Classifier
+         4 classes             6 classes
+         Bounding boxes ✓      No bounding box ✗
+              │                     │
+              └──────────┬──────────┘
+                         │
+                 Decision Logic
+                         │
+               ┌─────────┴─────────┐
+               │                   │
+        YOLO detects         YOLO finds nothing
+               │                   │
+           DEFECTIVE        Classifier ≥ 0.55
+                            AND defective class?
+                                   │
+                          ┌────────┴────────┐
+                          │                 │
+                     YES → DEFECTIVE    NO → PASS
+```
+
+---
+
+## Datasets
+
+### Dataset 1 — TILDA-400 (YOLO Object Detection)
+| Property  | Value                                       |
+|-----------|---------------------------------------------|
+| Images    | ~400                                        |
+| Format    | YOLO `.txt` bounding box annotations        |
+| Classes   | hole · objects · oil spot · thread error    |
+| Location  | `photos/` + `labels/`                       |
+
+### Dataset 2 — Fabric Defects Dataset (Classification)
+| Property  | Value                                              |
+|-----------|----------------------------------------------------|
+| Images    | ~2000                                              |
+| Format    | Folder-per-class (NO bounding boxes)               |
+| Classes   | Vertical · defect free · hole · horizontal · lines · stain |
+| Location  | `Fabric Defects Dataset/`                          |
+
+> ⚠️ The classifier dataset has **no bounding box annotations**.  
+> Bounding boxes were **not fabricated**. The classifier provides class + confidence only.
+
+---
+
+## Defect Classes
+
+### YOLO (with localization)
+| ID | Class        |
+|----|--------------|
+| 0  | hole         |
+| 1  | objects      |
+| 2  | oil spot     |
+| 3  | thread error |
+
+### Classifier (no localization)
+| Class       | Quality Status |
+|-------------|---------------|
+| Vertical    | DEFECTIVE     |
+| defect free | **PASS**      |
+| hole        | DEFECTIVE     |
+| horizontal  | DEFECTIVE     |
+| lines       | DEFECTIVE     |
+| stain       | DEFECTIVE     |
+
+---
+
+## Actual Classifier Metrics (Held-Out Test Set — 408 images)
+
+> These are **real metrics** from `training/evaluate_classifier.py` on the held-out test split.
+
+| Metric              | Value     |
+|---------------------|-----------|
+| Overall Accuracy    | **94.61%** |
+| Macro Precision     | 88.16%    |
+| Macro Recall        | 91.32%    |
+| Macro F1-Score      | 89.37%    |
+| Weighted F1-Score   | 94.61%    |
+
+### Per-Class Performance
+
+| Class       | Precision | Recall  | F1     | Support |
+|-------------|-----------|---------|--------|---------|
+| Vertical    | 82.35%    | 100.00% | 90.32% | 14      |
+| defect free | 99.19%    | 98.00%  | 98.59% | 250     |
+| hole        | 86.84%    | 78.57%  | 82.50% | 42      |
+| horizontal  | 89.47%    | 80.95%  | 85.00% | 21      |
+| lines       | 77.78%    | 95.45%  | 85.71% | 22      |
+| stain       | 93.33%    | 94.92%  | 94.12% | 59      |
+
+### Binary Quality Metrics (DEFECTIVE vs PASS)
+
+| Metric                     | Value    |
+|----------------------------|----------|
+| Defect Detection Accuracy  | **98.28%** |
+| Defect Recall (Sensitivity)| **98.73%** |
+| Defect Precision           | 96.89%   |
+| Defect F1-Score            | **97.81%** |
+| False Negatives            | 2 / 158 defective images |
+
+The model checkpoint was saved from **epoch 6** (Val Macro F1 = 0.9551).
+
+Full results saved in `results/new_classifier/`:
+- `classifier_metrics.json`
+- `classifier_confusion_matrix.png`
+- `classifier_training_history.png`
+- `dataset_split.json`
+- `sample_test_predictions.json`
+
+---
 
 ## Technology Stack
-- **Deep Learning**: PyTorch, Ultralytics YOLOv8
-- **Backend API**: FastAPI, Uvicorn, Pydantic
-- **Frontend**: React, TailwindCSS, Vite
-- **Data Processing**: OpenCV, NumPy, Pandas
 
-## YOLO Model
-We use a lightweight YOLO model (`yolov8n`) to ensure fast inference speeds and low compute requirements, making it ideal for edge deployments or local execution without heavy GPUs.
+| Layer         | Technology                                           |
+|---------------|------------------------------------------------------|
+| Frontend      | React 18 · Vite · Tailwind CSS                      |
+| Backend API   | FastAPI · uvicorn · Pydantic                        |
+| Detection     | Ultralytics YOLOv8n/s · OpenCV · NumPy              |
+| Classifier    | PyTorch · torchvision · MobileNetV3-Small           |
+| Training libs | scikit-learn · matplotlib · Pillow                  |
 
-## Dataset Preparation
-The custom `prepare_dataset.py` script:
-1. Shuffles and splits the TILDA-400 dataset (80% train, 20% val).
-2. Converts and moves images and `.txt` labels to the YOLO standard directory structure.
-3. Automatically generates the required `data.yaml`.
-
-## Training Process
-The `train.py` script leverages Ultralytics APIs to train the YOLO model. It automatically detects GPU availability (CUDA) or falls back to CPU. The model saves weights periodically and tracks performance metrics during training.
-
-## Evaluation and Results
-After training, the `evaluate.py` script validates the best weights on the validation dataset. 
-*(Once training completes, actual evaluation metrics like mAP50, mAP50-95, precision, and recall will be populated in the `results/evaluation/metrics.json`)*.
-
-## Backend API
-The FastAPI backend exposes two main endpoints:
-- `GET /api/health`: Checks system status and model readiness.
-- `POST /api/predict`: Accepts an uploaded image, runs YOLO inference, calculates defect bounding boxes and confidence scores, and returns structured JSON containing the quality status (PASS/DEFECTIVE).
-
-## Frontend
-The React dashboard provides a professional, industrial-grade user interface:
-- Drag-and-drop file upload.
-- Image preview with drawn YOLO bounding boxes indicating defect locations.
-- Real-time prediction display, showing confidence scores and defect details.
+---
 
 ## How to Run
 
-### 1. Backend
+### Backend
 ```bash
 pip install -r requirements.txt
 python -m backend.main
 ```
 
-### 2. Frontend
+Backend starts at `http://localhost:8000`
+
+### Frontend
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-## Example Prediction
-**Input**: Fabric image with an oil spot.
-**Output**:
+Frontend starts at `http://localhost:5173`
+
+---
+
+## API Endpoints
+
+### `GET /api/health`
+```json
+{
+  "status": "ok",
+  "yolo_loaded": true,
+  "classifier_loaded": true,
+  "model_loaded": true
+}
+```
+
+### `POST /api/predict` (multipart/form-data, field: `file`)
+
+**When YOLO detects a defect (with bounding box):**
 ```json
 {
   "quality_status": "DEFECTIVE",
-  "defects": [
+  "primary_defect": "hole",
+  "confidence": 0.93,
+  "detection_source": "yolo",
+  "detections": [
     {
-      "class_name": "oil spot",
-      "confidence": 0.9234,
-      "bbox": { "x1": 120, "y1": 80, "x2": 260, "y2": 190 }
+      "source": "yolo",
+      "class_name": "hole",
+      "confidence": 0.93,
+      "bbox": { "x1": 120, "y1": 80, "x2": 300, "y2": 250 }
     }
   ],
+  "classification": { "source": "classifier", "class_name": "hole", "confidence": 0.88, "is_defective": true, "all_probs": {...} },
+  "defects": [...],
   "defect_count": 1
 }
 ```
 
-## Limitations
-- Performance depends strictly on lighting conditions similar to the training dataset.
-- Extremely small defects might be missed at lower image resolutions (e.g., <640px).
+**When Classifier catches a defect YOLO missed (no bounding box):**
+```json
+{
+  "quality_status": "DEFECTIVE",
+  "primary_defect": "stain",
+  "confidence": 0.91,
+  "detection_source": "classifier",
+  "detections": [],
+  "classification": { "source": "classifier", "class_name": "stain", "confidence": 0.91, "is_defective": true, "all_probs": {...} },
+  "defects": [],
+  "defect_count": 0
+}
+```
 
-## Future Enhancements
-- Real-time camera inspection.
-- Production-line PLC integration.
-- Defect severity estimation.
-- Higher-resolution edge-device deployment.
+**PASS:**
+```json
+{
+  "quality_status": "PASS",
+  "primary_defect": "defect free",
+  "confidence": 0.998,
+  "detection_source": "none",
+  "detections": [],
+  "classification": { "source": "classifier", "class_name": "defect free", "confidence": 0.998, "is_defective": false },
+  "defects": [],
+  "defect_count": 0
+}
+```
+
+---
+
+## Training the Classifier
+
+```bash
+# Train (default 10 epochs, batch size 32)
+python -m training.train_classifier
+
+# Or specify epochs
+python -m training.train_classifier 15
+
+# Evaluate on held-out test set
+python -m training.evaluate_classifier
+```
+
+---
+
+## Project Structure
+
+```
+AI-Fabric-Defect-Detection/
+├── backend/
+│   ├── main.py                    ← FastAPI app (hybrid pipeline)
+│   ├── model_service.py           ← YOLOv8 detection service
+│   ├── classifier_service.py      ← MobileNetV3 classifier service
+│   ├── preprocessing.py           ← OpenCV image decode
+│   ├── schemas.py                 ← Pydantic response models
+│   └── models/
+│       ├── best.pt                ← YOLO weights
+│       ├── fabric_classifier_best.pth ← Classifier weights
+│       └── classifier_classes.json    ← Class mapping
+├── training/
+│   ├── train_classifier.py        ← MobileNetV3 training pipeline
+│   ├── evaluate_classifier.py     ← Classifier evaluation
+│   ├── train.py                   ← YOLO training
+│   ├── prepare_dataset.py         ← TILDA-400 dataset preparation
+│   └── ...
+├── results/
+│   ├── new_classifier/            ← Classifier metrics, plots, splits
+│   └── yolov8s_fabric_full/       ← YOLO training results
+├── frontend/
+│   └── src/
+│       ├── App.jsx                ← Main React dashboard
+│       └── index.css              ← Tailwind + custom styles
+├── Fabric Defects Dataset/        ← New 2000-image dataset (classification)
+├── photos/                        ← TILDA-400 images (keep!)
+├── labels/                        ← TILDA-400 labels (keep!)
+├── dataset/                       ← YOLO split dataset (keep!)
+└── requirements.txt
+```
+
+---
+
+## Limitations
+
+- The Fabric Defects Dataset classifier cannot provide bounding box localization
+- YOLO model limited to TILDA-400 texture distribution
+- Highly varied or novel fabrics may need additional training data
+- Classifier has a fixed 0.55 confidence threshold — adjust in `classifier_service.py` if needed
+
+---
+
+## False Negative Strategy
+
+| Scenario                                   | Old System | New System |
+|--------------------------------------------|-----------|------------|
+| YOLO detects defect                        | DEFECTIVE | DEFECTIVE  |
+| YOLO misses; classifier confident (≥0.55)  | PASS ❌   | DEFECTIVE ✅ |
+| YOLO misses; defect free confirmed         | PASS ✅   | PASS ✅   |
+| Both uncertain                             | PASS ✅   | PASS ✅   |

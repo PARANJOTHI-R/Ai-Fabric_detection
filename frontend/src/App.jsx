@@ -271,13 +271,13 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="hidden sm:flex items-center gap-1.5 text-xs text-secondary px-3 py-1.5 bg-surface-2 rounded-lg border border-border">
-              <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse-soft"></span>
-              System Active
-            </span>
-            <span className="text-xs font-medium px-3 py-1.5 bg-primary-light text-primary rounded-lg border border-primary/20">
-              Dashboard
-            </span>
+            {/* <span className="hidden sm:flex items-center gap-1.5 text-xs text-secondary px-3 py-1.5 bg-surface-2 rounded-lg border border-border"> */}
+              {/* <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse-soft"></span> */}
+              {/* System Active */}
+            {/* </span> */}
+            {/* <span className="text-xs font-medium px-3 py-1.5 bg-primary-light text-primary rounded-lg border border-primary/20"> */}
+              {/* Dashboard */}
+            {/* </span> */}
           </div>
         </div>
       </header>
@@ -335,7 +335,7 @@ export default function App() {
               </h3>
               <div className="space-y-2 text-xs">
                 {[
-                  { label: 'Detection',    value: 'YOLOv8 (TILDA-400)' },
+                  { label: 'Detection',    value: 'YOLOv8' },
                   { label: 'Classifier',   value: 'MobileNetV3-Small' },
                   { label: 'YOLO Classes', value: '4 defect types' },
                   { label: 'CLF Classes',  value: '6 fabric classes' },
@@ -709,7 +709,7 @@ export default function App() {
       <footer className="border-t border-border bg-surface py-4">
         <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted">
           <p>Fabric Defect Inspection &mdash; AI-Powered Quality Control</p>
-          <p>TILDA-400 (YOLO) &bull; Fabric Defects Dataset (MobileNetV3) &bull; FastAPI + React</p>
+          <p>&bull; Fabric Defects Dataset (MobileNetV3) &bull; FastAPI + React</p>
         </div>
       </footer>
     </div>

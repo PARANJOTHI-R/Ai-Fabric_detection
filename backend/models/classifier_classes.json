@@ -1,0 +1,33 @@
+{
+  "classes": [
+    "Vertical",
+    "defect free",
+    "hole",
+    "horizontal",
+    "lines",
+    "stain"
+  ],
+  "class_to_idx": {
+    "Vertical": 0,
+    "defect free": 1,
+    "hole": 2,
+    "horizontal": 3,
+    "lines": 4,
+    "stain": 5
+  },
+  "idx_to_class": {
+    "0": "Vertical",
+    "1": "defect free",
+    "2": "hole",
+    "3": "horizontal",
+    "4": "lines",
+    "5": "stain"
+  },
+  "defective_classes": [
+    "Vertical",
+    "hole",
+    "horizontal",
+    "lines",
+    "stain"
+  ]
+}

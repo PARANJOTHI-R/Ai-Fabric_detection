@@ -1,0 +1,18 @@
+# Cloud GPU Training Dependencies (Queue V1)
+# Derived from development environment and training requirements
+
+# PyTorch & Torchvision (CUDA-enabled build on cloud GPU instance)
+# In Google Colab or modern cloud VMs, PyTorch with CUDA is pre-installed.
+# If installing manually: pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Core object detection & computer vision
+ultralytics==8.2.0
+opencv-python-headless>=4.8.0
+pillow>=10.0.0
+numpy>=1.24.0
+
+# Evaluation & data configuration
+scikit-learn>=1.3.0
+pyyaml>=6.0.0

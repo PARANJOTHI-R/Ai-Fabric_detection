@@ -74,4 +74,5 @@ def prepare_dataset(base_dir):
     print(f"Created {yaml_path}")
 
 if __name__ == '__main__':
-    prepare_dataset('d:/PROJECTS/AI-Fabric-Defect-Detection')
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    prepare_dataset(repo_root)

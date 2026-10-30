@@ -28,6 +28,8 @@ class Detection(BaseModel):
     class_name: str
     confidence: float
     bbox: BoundingBox
+    raw_class_name: Optional[str] = None
+    raw_confidence: Optional[float] = None
 
 
 class ClassificationResult(BaseModel):
@@ -43,10 +45,10 @@ class ClassificationResult(BaseModel):
 
 
 class PredictionResponse(BaseModel):
-    quality_status: str            # "PASS" | "DEFECTIVE"
-    primary_defect: Optional[str]  # best defect class name or None
-    confidence: Optional[float]    # confidence of the primary defect / None
-    detection_source: str          # "yolo" | "classifier" | "both" | "none"
+    quality_status: str            # "PASS" | "DEFECTIVE" | "STANDBY" | "ERROR"
+    primary_defect: Optional[str] = None  # best defect class name or None
+    confidence: Optional[float] = None    # confidence of the primary defect / None
+    detection_source: str = "none" # "yolo" | "classifier" | "both" | "none" | "system"
 
     # YOLO detections (have bounding boxes)
     detections: List[Detection] = []
@@ -57,6 +59,27 @@ class PredictionResponse(BaseModel):
     # Legacy alias kept for backward-compat (mirrors detections)
     defects: List[Detection] = []
     defect_count: int = 0
+    processing_time_ms: float = 0.0
+    total_defect_probability: Optional[float] = None
+    warning: Optional[str] = None
+    status_code: str = "OK"
+
+
+class CameraFrameResponse(BaseModel):
+    quality_status: str            # "PASS" | "DEFECTIVE" | "STANDBY" | "ERROR"
+    primary_defect: Optional[str] = None
+    confidence: Optional[float] = None
+    detection_source: str = "none"  # "yolo" | "classifier" | "both" | "none" | "system"
+    detections: List[Detection] = []
+    classification: Optional[ClassificationResult] = None
+    defects: List[Detection] = []
+    defect_count: int = 0
+    processing_time_ms: float = 0.0
+    mean_brightness: Optional[float] = None
+    total_defect_probability: Optional[float] = None
+    warning: Optional[str] = None
+    status_code: str = "OK"        # "OK" | "STANDBY_FEED" | "DARK_FRAME" | "INFERENCE_ERROR"
+    timestamp: Optional[str] = None
 
 
 class HealthResponse(BaseModel):

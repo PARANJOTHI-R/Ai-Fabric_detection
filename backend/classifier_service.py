@@ -18,6 +18,9 @@ import numpy as np
 from PIL import Image
 
 
+from .config import InspectionConfig
+
+
 class ClassifierService:
     """
     Hybrid-pipeline classifier. Accepts an OpenCV BGR numpy array and returns:
@@ -25,14 +28,13 @@ class ClassifierService:
             "class_name": str,
             "confidence": float,         # 0.0 – 1.0
             "is_defective": bool,
+            "total_defect_probability": float,
             "all_probs": {class_name: float, ...}
         }
     Returns None if the model is not loaded.
     """
 
-    # Minimum softmax probability for the predicted class to be treated as
-    # definitive (below this → treat as uncertain / don't override YOLO PASS).
-    CLASSIFIER_DEFECT_THRESHOLD = 0.55
+    CLASSIFIER_DEFECT_THRESHOLD = InspectionConfig.CLASSIFIER_DEFECT_THRESHOLD
 
     def __init__(self):
         self.model = None
@@ -106,6 +108,18 @@ class ClassifierService:
     def is_loaded(self):
         return self.model is not None
 
+    def warmup(self):
+        """Warmup forward pass to initialize PyTorch inference graph."""
+        if self.is_loaded:
+            try:
+                dummy = Image.new("RGB", (224, 224), (128, 128, 128))
+                tensor = self.transform(dummy).unsqueeze(0).to(self.device)
+                with torch.no_grad():
+                    self.model(tensor)
+                print("[ClassifierService] Warmup pass complete.")
+            except Exception as e:
+                print(f"[ClassifierService] Warmup warning: {e}")
+
     def predict(self, bgr_array: np.ndarray) -> dict | None:
         """
         Parameters
@@ -115,7 +129,7 @@ class ClassifierService:
 
         Returns
         -------
-        dict with keys: class_name, confidence, is_defective, all_probs
+        dict with keys: class_name, confidence, is_defective, total_defect_probability, all_probs
         """
         if not self.is_loaded:
             return None
@@ -138,9 +152,13 @@ class ClassifierService:
         all_probs = {cls: round(float(p), 4)
                      for cls, p in zip(self.classes, probs)}
 
+        p_df = all_probs.get("defect free", 0.0)
+        total_defect_probability = round(1.0 - p_df, 4)
+
         return {
             "class_name": pred_class,
             "confidence": round(confidence, 4),
             "is_defective": is_defective,
+            "total_defect_probability": total_defect_probability,
             "all_probs": all_probs
         }

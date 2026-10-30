@@ -26,6 +26,10 @@ class SimpleDataset(Dataset):
     def __getitem__(self, idx):
         item = self.items[idx]
         path = item["path"]
+        if not os.path.exists(path):
+            if "Fabric Defects Dataset" in path:
+                rel = path[path.index("Fabric Defects Dataset"):]
+                path = os.path.join(PROJECT_ROOT, rel)
         label = item["label"]
         with Image.open(path) as img:
             img = img.convert("RGB")

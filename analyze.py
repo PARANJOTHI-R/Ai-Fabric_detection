@@ -75,4 +75,5 @@ def analyze_dataset(workspace_path):
         print("No malformed annotations found.")
 
 if __name__ == '__main__':
-    analyze_dataset('d:/PROJECTS/AI-Fabric-Defect-Detection')
+    repo_root = os.path.dirname(os.path.abspath(__file__))
+    analyze_dataset(repo_root)

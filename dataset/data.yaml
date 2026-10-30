@@ -1,4 +1,4 @@
-path: d:/PROJECTS/AI-Fabric-Defect-Detection\dataset
+path: d:/AI-Fabric-Defect-Detection/AI-Fabric-Defect-Detection/dataset
 train: images/train
 val: images/val
 names:

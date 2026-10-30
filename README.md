@@ -48,7 +48,7 @@
 ### Dataset 2 — Fabric Defects Dataset (Classification)
 | Property  | Value                                              |
 |-----------|----------------------------------------------------|
-| Images    | ~2000                                              |
+| Images    | 2,736 raw images (2,715 unique after deduplication)|
 | Format    | Folder-per-class (NO bounding boxes)               |
 | Classes   | Vertical · defect free · hole · horizontal · lines · stain |
 | Location  | `Fabric Defects Dataset/`                          |
@@ -128,11 +128,11 @@ Full results saved in `results/new_classifier/`:
 
 | Layer         | Technology                                           |
 |---------------|------------------------------------------------------|
-| Frontend      | React 18 · Vite · Tailwind CSS                      |
-| Backend API   | FastAPI · uvicorn · Pydantic                        |
-| Detection     | Ultralytics YOLOv8n/s · OpenCV · NumPy              |
-| Classifier    | PyTorch · torchvision · MobileNetV3-Small           |
-| Training libs | scikit-learn · matplotlib · Pillow                  |
+| Frontend      | React 19 · Vite 8 · Tailwind CSS 3.4                 |
+| Backend API   | FastAPI · uvicorn · Pydantic                         |
+| Detection     | Ultralytics YOLOv8s (28 epochs) / YOLOv8n · OpenCV   |
+| Classifier    | PyTorch · torchvision · MobileNetV3-Small (epoch 6)  |
+| Training libs | scikit-learn · matplotlib · Pillow · NumPy           |
 
 ---
 
@@ -241,15 +241,20 @@ python -m training.evaluate_classifier
 
 ```
 AI-Fabric-Defect-Detection/
+├── AGENTS.md                      ← Primary AI coding assistant memory & constraints
+├── docs/
+│   ├── PROJECT_MEMORY.md          ← Comprehensive ground-truth technical specification
+│   ├── PHONE_CAMERA_INTEGRATION_PLAN.md ← Phone camera streaming & inspection plan
+│   └── project_overview.md        ← High-level architecture notes
 ├── backend/
 │   ├── main.py                    ← FastAPI app (hybrid pipeline)
-│   ├── model_service.py           ← YOLOv8 detection service
+│   ├── model_service.py           ← YOLOv8 detection service (auto-loads best run)
 │   ├── classifier_service.py      ← MobileNetV3 classifier service
 │   ├── preprocessing.py           ← OpenCV image decode
 │   ├── schemas.py                 ← Pydantic response models
 │   └── models/
-│       ├── best.pt                ← YOLO weights
-│       ├── fabric_classifier_best.pth ← Classifier weights
+│       ├── best.pt                ← Fallback YOLOv8n weights
+│       ├── fabric_classifier_best.pth ← Active MobileNetV3 classifier weights
 │       └── classifier_classes.json    ← Class mapping
 ├── training/
 │   ├── train_classifier.py        ← MobileNetV3 training pipeline
@@ -259,15 +264,15 @@ AI-Fabric-Defect-Detection/
 │   └── ...
 ├── results/
 │   ├── new_classifier/            ← Classifier metrics, plots, splits
-│   └── yolov8s_fabric_full/       ← YOLO training results
+│   └── yolov8s_fabric_full/       ← Active retrained YOLOv8s run (weights/best.pt)
 ├── frontend/
 │   └── src/
 │       ├── App.jsx                ← Main React dashboard
 │       └── index.css              ← Tailwind + custom styles
-├── Fabric Defects Dataset/        ← New 2000-image dataset (classification)
-├── photos/                        ← TILDA-400 images (keep!)
-├── labels/                        ← TILDA-400 labels (keep!)
-├── dataset/                       ← YOLO split dataset (keep!)
+├── Fabric Defects Dataset/        ← 2,736-image classification dataset
+├── photos/                        ← TILDA-400 images (400 images)
+├── labels/                        ← TILDA-400 labels (400 txt files)
+├── dataset/                       ← YOLO split dataset (320 train / 80 val)
 └── requirements.txt
 ```
 
